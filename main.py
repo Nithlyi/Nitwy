@@ -165,30 +165,51 @@ bot.tree.interaction_check = bot.on_app_command_invoke
 bot.tree.on_error = bot.on_app_command_error
 
 # ────────────────────────────────────────────────
-# Webserver para Railway + UptimeRobot
+# Webserver para Render + UptimeRobot
 app = FastAPI(title="Bot Keep-Alive")
 
 @app.get("/")
 async def root():
+    logger.info("[DEBUG] Ping recebido na rota /")
     return {
-        "status": "online",
-        "bot": bot.user.name if bot.user else "iniciando",
-        "uptime": "running"
+        "status": "okay",
+        "message": "funcionou"
     }
 
-@app.on_event("startup")
-async def startup_event():
-    # Inicia o bot quando o FastAPI sobe
-    try:
-        logger.info("[DEBUG] Iniciando bot via FastAPI startup...")
-        await bot.start(TOKEN)
-    except Exception as e:
-        logger.critical(f"[DEBUG] Erro ao iniciar bot: {e}")
+async def start_bot():
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"[DEBUG] Tentativa {attempt + 1} de iniciar bot...")
+            await bot.start(TOKEN)
+            logger.info("[DEBUG] Bot iniciado com sucesso!")
+            break
+        except discord.HTTPException as e:
+            if e.status == 429:
+                wait_time = (2 ** attempt) * 60  # Backoff: 1min, 2min, 4min, 8min, 16min
+                logger.warning(f"[DEBUG] Rate limit detectado. Aguardando {wait_time}s...")
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"[DEBUG] Erro HTTP ao iniciar bot: {e}")
+                break
+        except Exception as e:
+            logger.critical(f"[DEBUG] Erro ao iniciar bot: {e}")
+            break
+    else:
+        logger.critical("[DEBUG] Falhou em todas as tentativas de iniciar o bot.")
 
 def run_webserver():
     try:
-        port = int(os.getenv("PORT", 8000))
+        port = int(os.getenv("PORT", 10000))
         logger.info(f"[DEBUG] Iniciando webserver na porta {port}...")
+        
+        # Inicia o bot em um thread separado
+        import threading
+        bot_thread = threading.Thread(target=lambda: asyncio.run(start_bot()), daemon=True)
+        bot_thread.start()
+        logger.info("[DEBUG] Thread do bot iniciada.")
+        
+        # Roda o webserver
         uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
     except Exception as e:
         logger.error(f"[DEBUG] Erro ao iniciar webserver: {e}")
@@ -197,4 +218,4 @@ def run_webserver():
 # Início principal
 if __name__ == "__main__":
     logger.info("[DEBUG] Iniciando aplicação principal...")
-    run_webserver()  # Roda o webserver diretamente (Railway detectará isso)
+    run_webserver()  # Roda o webserver e inicia o bot em thread
