@@ -2,9 +2,7 @@ import discord
 from discord.ext import commands
 import os
 import logging
-import threading
-import time
-import asyncio  
+import asyncio
 from typing import Dict
 from dotenv import load_dotenv
 import pymongo
@@ -67,15 +65,15 @@ class UserCooldown:
         self.last_used: Dict[int, float] = {}  # user_id → timestamp
 
     def is_on_cooldown(self, user_id: int) -> bool:
-        now = time.time()
+        now = asyncio.get_event_loop().time()
         last = self.last_used.get(user_id, 0)
         return now - last < self.cooldown
 
     def update(self, user_id: int):
-        self.last_used[user_id] = time.time()
+        self.last_used[user_id] = asyncio.get_event_loop().time()
 
     def remaining(self, user_id: int) -> float:
-        now = time.time()
+        now = asyncio.get_event_loop().time()
         last = self.last_used.get(user_id, 0)
         return max(0, self.cooldown - (now - last))
 
@@ -87,7 +85,7 @@ class MyBot(commands.Bot):
         super().__init__(
             command_prefix="!",
             intents=intents,
-            application_id=int(APPLICATION_ID),  # converte string → int
+            application_id=int(APPLICATION_ID),
             help_command=None
         )
         self.db = db
@@ -155,7 +153,6 @@ class MyBot(commands.Bot):
         except discord.HTTPException:
             pass  # já respondido / canal deletado / etc
 
-
 # Instancia o bot
 bot = MyBot()
 
@@ -171,52 +168,56 @@ app = FastAPI(title="Bot Keep-Alive")
 
 @app.get("/")
 async def root():
-    logger.info("[DEBUG] Ping recebido na rota /")
     return {
         "status": "okay",
-        "message": "funcionou"
+        "message": "Bot is running"
+    }
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+        "bot_online": bot.is_ready(),
+        "guilds": len(bot.guilds) if bot.is_ready() else 0
     }
 
 async def start_bot():
     max_retries = 5
     for attempt in range(max_retries):
         try:
-            logger.info(f"[DEBUG] Tentativa {attempt + 1} de iniciar bot...")
+            logger.info(f"Tentativa {attempt + 1} de iniciar bot...")
             await bot.start(TOKEN)
-            logger.info("[DEBUG] Bot iniciado com sucesso!")
             break
         except discord.HTTPException as e:
             if e.status == 429:
                 wait_time = (2 ** attempt) * 60  # Backoff: 1min, 2min, 4min, 8min, 16min
-                logger.warning(f"[DEBUG] Rate limit detectado. Aguardando {wait_time}s...")
+                logger.warning(f"Rate limit detectado. Aguardando {wait_time}s...")
                 await asyncio.sleep(wait_time)
             else:
-                logger.error(f"[DEBUG] Erro HTTP ao iniciar bot: {e}")
+                logger.error(f"Erro HTTP ao iniciar bot: {e}")
                 break
         except Exception as e:
-            logger.critical(f"[DEBUG] Erro ao iniciar bot: {e}")
+            logger.critical(f"Erro ao iniciar bot: {e}")
             break
     else:
-        logger.critical("[DEBUG] Falhou em todas as tentativas de iniciar o bot.")
+        logger.critical("Falhou em todas as tentativas de iniciar o bot.")
 
 def run_webserver():
     try:
         port = int(os.getenv("PORT", 10000))
-        logger.info(f"[DEBUG] Iniciando webserver na porta {port}...")
+        logger.info(f"Iniciando webserver na porta {port}...")
         
         # Inicia o bot em um thread separado
         import threading
         bot_thread = threading.Thread(target=lambda: asyncio.run(start_bot()), daemon=True)
         bot_thread.start()
-        logger.info("[DEBUG] Thread do bot iniciada.")
         
         # Roda o webserver
         uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
     except Exception as e:
-        logger.error(f"[DEBUG] Erro ao iniciar webserver: {e}")
+        logger.error(f"Erro ao iniciar webserver: {e}")
 
 # ────────────────────────────────────────────────
 # Início principal
 if __name__ == "__main__":
-    logger.info("[DEBUG] Iniciando aplicação principal...")
-    run_webserver()  # Roda o webserver e inicia o bot em thread
+    run_webserver()
