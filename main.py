@@ -1,4 +1,3 @@
-# main.py
 import discord
 from discord.ext import commands
 import os
@@ -166,7 +165,7 @@ bot.tree.interaction_check = bot.on_app_command_invoke
 bot.tree.on_error = bot.on_app_command_error
 
 # ────────────────────────────────────────────────
-# Webserver para Render + UptimeRobot
+# Webserver para Railway + UptimeRobot
 app = FastAPI(title="Bot Keep-Alive")
 
 @app.get("/")
@@ -177,13 +176,25 @@ async def root():
         "uptime": "running"
     }
 
+@app.on_event("startup")
+async def startup_event():
+    # Inicia o bot quando o FastAPI sobe
+    try:
+        logger.info("[DEBUG] Iniciando bot via FastAPI startup...")
+        await bot.start(TOKEN)
+    except Exception as e:
+        logger.critical(f"[DEBUG] Erro ao iniciar bot: {e}")
+
 def run_webserver():
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="error")
+    try:
+        port = int(os.getenv("PORT", 8000))
+        logger.info(f"[DEBUG] Iniciando webserver na porta {port}...")
+        uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    except Exception as e:
+        logger.error(f"[DEBUG] Erro ao iniciar webserver: {e}")
 
 # ────────────────────────────────────────────────
 # Início principal
 if __name__ == "__main__":
-    logger.info("Iniciando o bot...")
-    threading.Thread(target=run_webserver, daemon=True).start()
-    bot.run(TOKEN)
+    logger.info("[DEBUG] Iniciando aplicação principal...")
+    run_webserver()  # Roda o webserver diretamente (Railway detectará isso)
