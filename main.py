@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import pymongo
 from fastapi import FastAPI
 import uvicorn
+import threading
 
 # Importa o handler de cogs (seu arquivo handler.py)
 from handler import load_cogs
@@ -21,7 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Carrega .env
+# Carrega variáveis de ambiente
 load_dotenv()
 
 # Variáveis obrigatórias
@@ -29,14 +30,18 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 APPLICATION_ID = os.getenv('APPLICATION_ID')
 MONGO_URI = os.getenv('MONGO_URI')
 DB_NAME = os.getenv('DATABASE_NAME', 'discordbot')
+PORT = int(os.getenv('PORT', 10000))
 
 # Validação inicial
-if not TOKEN:
-    logger.critical("DISCORD_TOKEN não encontrado no .env")
-    exit(1)
-if not APPLICATION_ID:
-    logger.critical("APPLICATION_ID não encontrado no .env (pegue no Developer Portal)")
-    exit(1)
+required_vars = {
+    'DISCORD_TOKEN': TOKEN,
+    'APPLICATION_ID': APPLICATION_ID
+}
+for var_name, var_value in required_vars.items():
+    if not var_value:
+        logger.critical(f"{var_name} não encontrado no .env")
+        exit(1)
+
 if not MONGO_URI:
     logger.warning("MONGO_URI não encontrado — rodando sem banco de dados")
 
@@ -164,7 +169,7 @@ bot.tree.on_error = bot.on_app_command_error
 
 # ────────────────────────────────────────────────
 # Webserver para Render + UptimeRobot
-app = FastAPI(title="Bot Keep-Alive")
+app = FastAPI(title="Bot Keep-Alive", description="Mantém o bot Discord ativo no Render")
 
 @app.get("/")
 async def root():
@@ -176,11 +181,13 @@ async def root():
 @app.get("/health")
 async def health():
     return {
-        "status": "healthy",
+        "status": "healthy" if bot.is_ready() else "starting",
         "bot_online": bot.is_ready(),
-        "guilds": len(bot.guilds) if bot.is_ready() else 0
+        "guilds": len(bot.guilds) if bot.is_ready() else 0,
+        "uptime": "N/A"  # Pode adicionar uptime se quiser
     }
 
+# ────────────────────────────────────────────────
 async def start_bot():
     max_retries = 5
     for attempt in range(max_retries):
@@ -204,20 +211,20 @@ async def start_bot():
 
 def run_webserver():
     try:
-        port = int(os.getenv("PORT", 10000))
-        logger.info(f"Iniciando webserver na porta {port}...")
+        logger.info(f"Iniciando webserver na porta {PORT}...")
         
-        # Inicia o bot em um thread separado
-        import threading
+        # Inicia o bot em um thread separado para não bloquear o webserver
         bot_thread = threading.Thread(target=lambda: asyncio.run(start_bot()), daemon=True)
         bot_thread.start()
+        logger.info("Thread do bot iniciada.")
         
-        # Roda o webserver
-        uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+        # Roda o webserver com uvicorn
+        uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
     except Exception as e:
         logger.error(f"Erro ao iniciar webserver: {e}")
 
 # ────────────────────────────────────────────────
 # Início principal
 if __name__ == "__main__":
+    logger.info("Iniciando aplicação principal...")
     run_webserver()
