@@ -169,9 +169,9 @@ bot.tree.on_error = bot.on_app_command_error
 
 # ────────────────────────────────────────────────
 # Webserver para Render + UptimeRobot
-app = FastAPI(title="Bot Keep-Alive", description="Mantém o bot Discord ativo no Render")
+app = FastAPI(title="Bot Keep-Alive", description="Mantém o bot Discord ativo no Railway")
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     return {
         "status": "okay",
