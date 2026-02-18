@@ -465,4 +465,4 @@ class Goodbye(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(Goodbye(bot))
+    await bot.add_cog(Goodbye(bot))dsadada
