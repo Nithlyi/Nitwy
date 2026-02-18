@@ -385,7 +385,6 @@ class Goodbye(commands.Cog):
             "fields": []
         })
 
-        # Linha ~390: Início das correções (substitua tudo a partir daqui)
         def replace_vars(text: str) -> str:
             if not text:
                 return ""
@@ -399,37 +398,37 @@ class Goodbye(commands.Cog):
                 member_count=interaction.guild.member_count,
                 timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
                 user_created=discord.utils.format_dt(getattr(interaction.user, 'created_at', datetime.datetime.utcnow()), "F"),
-        user_joined=discord.utils.format_dt(getattr(interaction.user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(interaction.user, 'joined_at') else "N/A"
-        )
+                user_joined=discord.utils.format_dt(getattr(interaction.user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(interaction.user, 'joined_at') else "N/A"
+            )
 
-    title = replace_vars(embed_config.get("title", ""))
-    description = replace_vars(embed_config.get("description", ""))
+        title = replace_vars(embed_config.get("title", ""))
+        description = replace_vars(embed_config.get("description", ""))
 
-    embed = discord.Embed(title=title, description=description, color=embed_config.get("color", 0xff5555))
+        embed = discord.Embed(title=title, description=description, color=embed_config.get("color", 0xff5555))
 
-    if embed_config.get("thumbnail"):
-        thumb = replace_vars(embed_config["thumbnail"])
-        if "{user_avatar}" in thumb:
-            embed.set_thumbnail(url=interaction.user.avatar.url if interaction.user.avatar else None)
-        else:
-            embed.set_thumbnail(url=thumb)
+        if embed_config.get("thumbnail"):
+            thumb = replace_vars(embed_config["thumbnail"])
+            if "{user_avatar}" in thumb:
+                embed.set_thumbnail(url=interaction.user.avatar.url if interaction.user.avatar else None)
+            else:
+                embed.set_thumbnail(url=thumb)
 
-    if embed_config.get("image"):
-        img = replace_vars(embed_config["image"])
-        embed.set_image(url=img)
+        if embed_config.get("image"):
+            img = replace_vars(embed_config["image"])
+            embed.set_image(url=img)
 
-    if embed_config.get("footer"):
-        footer = replace_vars(embed_config["footer"])
-        embed.set_footer(text=footer)
+        if embed_config.get("footer"):
+            footer = replace_vars(embed_config["footer"])
+            embed.set_footer(text=footer)
 
-    for field in embed_config.get("fields", []):
-        name = replace_vars(field.get("name", "Campo"))
-        value = replace_vars(field.get("value", "Valor"))
-        inline = field.get("inline", False)
-        embed.add_field(name=name, value=value, inline=inline)
+        for field in embed_config.get("fields", []):
+            name = replace_vars(field.get("name", "Campo"))
+            value = replace_vars(field.get("value", "Valor"))
+            inline = field.get("inline", False)
+            embed.add_field(name=name, value=value, inline=inline)
 
-    await interaction.channel.send(embed=embed)
-    await interaction.response.send_message("Teste de goodbye enviado no canal atual!", ephemeral=True)
+        await interaction.channel.send(embed=embed)
+        await interaction.response.send_message("Teste de goodbye enviado no canal atual!", ephemeral=True)
 
 
 async def setup(bot):
