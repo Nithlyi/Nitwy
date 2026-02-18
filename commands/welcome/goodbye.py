@@ -99,6 +99,22 @@ class GoodbyeConfigView(ui.View):
         }
         self.preview_message = None
 
+    def replace_vars(self, text: str, user: discord.User, guild: discord.Guild) -> str:
+        if not text:
+            return ""
+        return text.format(
+            user=user,
+            user_mention=user.mention,
+            user_name=user.name,
+            user_id=user.id,
+            user_avatar=user.avatar.url if user.avatar else None,
+            server=guild.name,
+            member_count=guild.member_count,
+            timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
+            user_created=discord.utils.format_dt(getattr(user, 'created_at', datetime.datetime.utcnow()), "F"),
+            user_joined=discord.utils.format_dt(getattr(user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(user, 'joined_at') and getattr(user, 'joined_at') else "N/A"
+        )
+
     async def update_preview(self):
         embed = discord.Embed(
             title="Configuração de Goodbye (Preview ao vivo)",
@@ -109,65 +125,35 @@ class GoodbyeConfigView(ui.View):
         user = self.interaction.user
         guild = self.interaction.guild
 
+        # Use replace_vars para título e descrição
+        title = self.replace_vars(self.config["embed"].get("title", "Adeus..."), user, guild)
+        description = self.replace_vars(self.config["embed"].get("description", ""), user, guild)
+
         preview_embed = discord.Embed(
-            title=self.config["embed"].get("title", "Adeus...").format(
-                user=user,
-                server=guild.name,
-                member_count=guild.member_count,
-                timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
-                user_created=discord.utils.format_dt(getattr(user, 'created_at', datetime.datetime.utcnow()), "F"),
-                user_joined=discord.utils.format_dt(getattr(user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(user, 'joined_at') and getattr(user, 'joined_at') else "N/A"
-            ),
-            description=self.config["embed"].get("description", "").format(
-                user=user,
-                server=guild.name,
-                member_count=guild.member_count,
-                timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
-                user_created=discord.utils.format_dt(getattr(user, 'created_at', datetime.datetime.utcnow()), "F"),
-                user_joined=discord.utils.format_dt(getattr(user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(user, 'joined_at') and getattr(user, 'joined_at') else "N/A"
-            ),
+            title=title,
+            description=description,
             color=self.config["embed"].get("color", 0xff5555)
         )
 
+        # Para thumbnail, use replace_vars
         if self.config["embed"].get("thumbnail"):
-            thumb = self.config["embed"]["thumbnail"].format(user=user)
-            if "{user_avatar}" in thumb:
-                preview_embed.set_thumbnail(url=getattr(user, 'avatar', None).url if hasattr(user, 'avatar') and user.avatar else None)
-            else:
-                preview_embed.set_thumbnail(url=thumb)
+            thumb = self.replace_vars(self.config["embed"]["thumbnail"], user, guild)
+            preview_embed.set_thumbnail(url=thumb)
 
+        # Para image, use replace_vars
         if self.config["embed"].get("image"):
-            img = self.config["embed"]["image"].format(user=user)
+            img = self.replace_vars(self.config["embed"]["image"], user, guild)
             preview_embed.set_image(url=img)
 
+        # Para footer, use replace_vars
         if self.config["embed"].get("footer"):
-            footer = self.config["embed"]["footer"].format(
-                user=user,
-                server=guild.name,
-                member_count=guild.member_count,
-                timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
-                user_created=discord.utils.format_dt(getattr(user, 'created_at', datetime.datetime.utcnow()), "F"),
-                user_joined=discord.utils.format_dt(getattr(user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(user, 'joined_at') and getattr(user, 'joined_at') else "N/A"
-            )
+            footer = self.replace_vars(self.config["embed"]["footer"], user, guild)
             preview_embed.set_footer(text=footer)
 
+        # Para fields, use replace_vars
         for field in self.config["embed"].get("fields", []):
-            name = field.get("name", "Campo").format(
-                user=user,
-                server=guild.name,
-                member_count=guild.member_count,
-                timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
-                user_created=discord.utils.format_dt(getattr(user, 'created_at', datetime.datetime.utcnow()), "F"),
-                user_joined=discord.utils.format_dt(getattr(user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(user, 'joined_at') and getattr(user, 'joined_at') else "N/A"
-            )
-            value = field.get("value", "Valor").format(
-                user=user,
-                server=guild.name,
-                member_count=guild.member_count,
-                timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
-                user_created=discord.utils.format_dt(getattr(user, 'created_at', datetime.datetime.utcnow()), "F"),
-                user_joined=discord.utils.format_dt(getattr(user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(user, 'joined_at') and getattr(user, 'joined_at') else "N/A"
-            )
+            name = self.replace_vars(field.get("name", "Campo"), user, guild)
+            value = self.replace_vars(field.get("value", "Valor"), user, guild)
             inline = field.get("inline", False)
             preview_embed.add_field(name=name, value=value, inline=inline)
 
@@ -177,7 +163,7 @@ class GoodbyeConfigView(ui.View):
 
         if self.preview_message:
             await self.preview_message.edit(embed=embed, view=self)
-            await self.preview_message.edit(embed=preview_embed)
+            await self.preview_message.edit(embed=preview_embed)  # Nota: Isso edita duas vezes; teste e ajuste se necessário (ex.: envie duas mensagens separadas).
         else:
             self.preview_message = await self.interaction.followup.send(embed=embed, view=self, ephemeral=True)
             await self.preview_message.edit(embed=preview_embed)
@@ -399,69 +385,51 @@ class Goodbye(commands.Cog):
             "fields": []
         })
 
-        title = embed_config.get("title", "").format(
-            user=interaction.user,
-            server=interaction.guild.name,
-            member_count=interaction.guild.member_count,
-            timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
-            user_created=discord.utils.format_dt(getattr(interaction.user, 'created_at', datetime.datetime.utcnow()), "F"),
-            user_joined=discord.utils.format_dt(getattr(interaction.user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(interaction.user, 'joined_at') else "N/A"
+        # Linha ~390: Início das correções (substitua tudo a partir daqui)
+        def replace_vars(text: str) -> str:
+            if not text:
+                return ""
+            return text.format(
+                user=interaction.user,
+                user_mention=interaction.user.mention,
+                user_name=interaction.user.name,
+                user_id=interaction.user.id,
+                user_avatar=interaction.user.avatar.url if interaction.user.avatar else None,
+                server=interaction.guild.name,
+                member_count=interaction.guild.member_count,
+                timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
+                user_created=discord.utils.format_dt(getattr(interaction.user, 'created_at', datetime.datetime.utcnow()), "F"),
+        user_joined=discord.utils.format_dt(getattr(interaction.user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(interaction.user, 'joined_at') else "N/A"
         )
-        description = embed_config.get("description", "").format(
-            user=interaction.user,
-            server=interaction.guild.name,
-            member_count=interaction.guild.member_count,
-            timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
-            user_created=discord.utils.format_dt(getattr(interaction.user, 'created_at', datetime.datetime.utcnow()), "F"),
-            user_joined=discord.utils.format_dt(getattr(interaction.user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(interaction.user, 'joined_at') else "N/A"
-        )
 
-        embed = discord.Embed(title=title, description=description, color=embed_config.get("color", 0xff5555))
+    title = replace_vars(embed_config.get("title", ""))
+    description = replace_vars(embed_config.get("description", ""))
 
-        if embed_config.get("thumbnail"):
-            thumb = embed_config["thumbnail"].format(user=interaction.user)
-            if "{user_avatar}" in thumb:
-                embed.set_thumbnail(url=interaction.user.avatar.url if interaction.user.avatar else None)
-            else:
-                embed.set_thumbnail(url=thumb)
+    embed = discord.Embed(title=title, description=description, color=embed_config.get("color", 0xff5555))
 
-        if embed_config.get("image"):
-            img = embed_config["image"].format(user=interaction.user)
-            embed.set_image(url=img)
+    if embed_config.get("thumbnail"):
+        thumb = replace_vars(embed_config["thumbnail"])
+        if "{user_avatar}" in thumb:
+            embed.set_thumbnail(url=interaction.user.avatar.url if interaction.user.avatar else None)
+        else:
+            embed.set_thumbnail(url=thumb)
 
-        if embed_config.get("footer"):
-            footer = embed_config["footer"].format(
-                user=interaction.user,
-                server=interaction.guild.name,
-                member_count=interaction.guild.member_count,
-                timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
-                user_created=discord.utils.format_dt(getattr(interaction.user, 'created_at', datetime.datetime.utcnow()), "F"),
-                user_joined=discord.utils.format_dt(getattr(interaction.user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(interaction.user, 'joined_at') else "N/A"
-            )
-            embed.set_footer(text=footer)
+    if embed_config.get("image"):
+        img = replace_vars(embed_config["image"])
+        embed.set_image(url=img)
 
-        for field in embed_config.get("fields", []):
-            name = field.get("name", "Campo").format(
-                user=interaction.user,
-                server=interaction.guild.name,
-                member_count=interaction.guild.member_count,
-                timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
-                user_created=discord.utils.format_dt(getattr(interaction.user, 'created_at', datetime.datetime.utcnow()), "F"),
-                user_joined=discord.utils.format_dt(getattr(interaction.user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(interaction.user, 'joined_at') else "N/A"
-            )
-            value = field.get("value", "Valor").format(
-                user=interaction.user,
-                server=interaction.guild.name,
-                member_count=interaction.guild.member_count,
-                timestamp=discord.utils.format_dt(datetime.datetime.utcnow(), "F"),
-                user_created=discord.utils.format_dt(getattr(interaction.user, 'created_at', datetime.datetime.utcnow()), "F"),
-                user_joined=discord.utils.format_dt(getattr(interaction.user, 'joined_at', datetime.datetime.utcnow()), "F") if hasattr(interaction.user, 'joined_at') else "N/A"
-            )
-            inline = field.get("inline", False)
-            embed.add_field(name=name, value=value, inline=inline)
+    if embed_config.get("footer"):
+        footer = replace_vars(embed_config["footer"])
+        embed.set_footer(text=footer)
 
-        await interaction.channel.send(embed=embed)
-        await interaction.response.send_message("Teste de goodbye enviado no canal atual!", ephemeral=True)
+    for field in embed_config.get("fields", []):
+        name = replace_vars(field.get("name", "Campo"))
+        value = replace_vars(field.get("value", "Valor"))
+        inline = field.get("inline", False)
+        embed.add_field(name=name, value=value, inline=inline)
+
+    await interaction.channel.send(embed=embed)
+    await interaction.response.send_message("Teste de goodbye enviado no canal atual!", ephemeral=True)
 
 
 async def setup(bot):
